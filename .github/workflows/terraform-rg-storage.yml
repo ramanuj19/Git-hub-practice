@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
       - main
-
   push:
     branches:
       - main
@@ -19,13 +18,14 @@ env:
   ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
-
   terraform-plan:
     name: Terraform Plan - RG and Storage
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Environment/preprod
 
     steps:
-
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -35,40 +35,33 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        working-directory: Environment/preprod
         run: terraform init
 
       - name: Terraform Format Check
-        working-directory: Environment/preprod
         run: terraform fmt -check
 
       - name: Terraform Validate
-        working-directory: Environment/preprod
         run: terraform validate
 
       - name: Terraform Plan
-        working-directory: Environment/preprod
         run: terraform plan
-
 
   terraform-apply:
     name: Terraform Apply - RG and Storage
     runs-on: ubuntu-latest
-
-    # Apply only after code is merged into main
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
     needs:
       - terraform-plan
+    defaults:
+      run:
+        working-directory: Environment/preprod
 
     steps:
-
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -83,9 +76,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        working-directory: Environment/preprod
         run: terraform init
 
       - name: Terraform Apply
-        working-directory: Environment/preprod
         run: terraform apply -auto-approve

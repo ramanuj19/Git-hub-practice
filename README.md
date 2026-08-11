@@ -10,6 +10,7 @@ This repository provides a **modular**, **scalable**, and **multi-environment** 
 - 🏗️ **Modular Architecture**: Clean separation between reusable infrastructure modules (`modules/`) and environment configurations (`Environment/`).
 - ⚡ **Dynamic Resource Provisioning**: Leverages Terraform `for_each` loops to dynamically instantiate multiple Azure resources from map definitions.
 - 🌐 **Multi-Environment Support**: Isolated configurations for pre-production (`preprod`) and production (`production`) environments.
+- 🤖 **Automated CI/CD Pipeline**: GitHub Actions workflows for automated format checking, plan previews on PRs, and automatic deployments on push.
 - 🔐 **Remote State Management**: Pre-configured Azure Blob Storage backend with state locking for team collaboration and data safety.
 - 📝 **Declarative Configuration**: Simplified variable management using environment-specific `.tfvars` files.
 
@@ -19,6 +20,9 @@ This repository provides a **modular**, **scalable**, and **multi-environment** 
 
 ```text
 .
+├── 🤖 .github/
+│   └── ⚙️ workflows/
+│       └── 📜 terraform.yml               # GitHub Actions CI/CD Pipeline
 ├── 🌍 Environment/
 │   ├── 🧪 preprod/
 │   │   ├── 📜 main.tf                    # Environment module calls
@@ -57,9 +61,32 @@ Provisions Azure Storage Accounts dynamically linked to designated resource grou
 
 ---
 
+## 🤖 GitHub Actions CI/CD Pipeline
+
+The repository includes a fully automated GitHub Actions workflow located at [.github/workflows/terraform.yml](file:///e:/DevOps/GITHUB%20Practice/.github/workflows/terraform.yml).
+
+### ⚙️ Pipeline Triggers & Jobs
+
+1. 🖌️ **Terraform Format & Lint** (`lint`): Runs `terraform fmt -check -recursive` on every PR or push.
+2. 📖 **Terraform Plan & PR Comment** (`plan`): Runs `terraform init`, `terraform validate`, and `terraform plan`, automatically adding a comment with the execution plan on open Pull Requests.
+3. 🚀 **Terraform Apply** (`apply`): Triggers automatically when code is merged into `main`, or via manual workflow dispatch.
+4. 🧹 **Terraform Destroy** (`destroy`): Can be executed manually via `workflow_dispatch` for environment teardown.
+
+### 🔑 Required GitHub Repository Secrets
+
+Configure the following secrets in **GitHub Repository Settings ➔ Secrets and variables ➔ Actions**:
+
+| Secret Name | Description |
+| :--- | :--- |
+| `AZURE_CLIENT_ID` | Application (Client) ID of the Azure App Registration / Service Principal |
+| `AZURE_TENANT_ID` | Azure Active Directory / Entra ID Tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | Target Azure Subscription ID |
+
+---
+
 ## ⚙️ Prerequisites
 
-Before deploying infrastructure, verify you have the following tools and access configured:
+Before deploying infrastructure locally or via GitHub Actions, verify you have:
 
 - 🛠️ **Terraform CLI** (v1.5.0+): [Download Terraform](https://developer.hashicorp.com/terraform/downloads)
 - 💻 **Azure CLI**: [Install Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
@@ -71,7 +98,7 @@ Before deploying infrastructure, verify you have the following tools and access 
 
 ---
 
-## 🚀 Step-by-Step Deployment Guide
+## 🚀 Step-by-Step Local Deployment Guide
 
 ### 🔑 Step 1: Authenticate with Azure
 Log in to your Azure account via Azure CLI:
