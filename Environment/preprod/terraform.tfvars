@@ -2,11 +2,11 @@ rgs = {
   rg1 = {
     name     = "rg-preprod-centralindia-01"
     location = "Central India"
-    tags     = {
-      Environment = "preprod"
-      ManagedBy   = "Terraform"
-    }
-  }
+     }
+     rg2 = {
+      name     = "rg-preprod-centralindia-02"
+      location = "Central India"
+     }
 }
 
 storages = {
