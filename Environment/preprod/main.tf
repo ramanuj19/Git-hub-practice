@@ -6,7 +6,7 @@ module "resource_group" {
 
 # Storage Account Module
 module "storage" {
-  source = "../../modules/azurerm_storage_account"
-  storages = var.storages
+  source     = "../../modules/azurerm_storage_account"
+  storages   = var.storages
   depends_on = [module.resource_group]
 }
