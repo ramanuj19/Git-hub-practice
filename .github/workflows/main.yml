@@ -1,0 +1,199 @@
+name: "Terraform Azure CI/CD"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Environment/**"
+      - "modules/**"
+      - ".github/workflows/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "Environment/**"
+      - "modules/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target Environment to Deploy"
+        required: true
+        default: "preprod"
+        type: choice
+        options:
+          - preprod
+          - production
+      action:
+        description: "Terraform Action"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+# Permissions required for Azure OIDC authentication and Pull Request commenting
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  # -------------------------------------------------------------
+  # Job 1: Terraform Format & Lint Check
+  # -------------------------------------------------------------
+  lint:
+    name: "Terraform Format & Lint"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.7"
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+  # -------------------------------------------------------------
+  # Job 2: Terraform Init & Plan
+  # -------------------------------------------------------------
+  plan:
+    name: "Terraform Plan (${{ github.event.inputs.environment || 'preprod' }})"
+    runs-on: ubuntu-latest
+    needs: lint
+    defaults:
+      run:
+        working-directory: "Environment/${{ github.event.inputs.environment || 'preprod' }}"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.7"
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color -var-file="terraform.tfvars"
+        continue-on-error: true
+
+      - name: Comment Plan on PR
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const output = `#### Environment: \`Environment/${{ github.event.inputs.environment || 'preprod' }}\`
+            #### Terraform Format Check 🖌\`${{ steps.init.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan Output</summary>
+
+            \`\`\`hcl
+            ${process.env.PLAN_OUTPUT}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }} in #${{ github.event.number }}*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+        env:
+          PLAN_OUTPUT: ${{ steps.plan.outputs.stdout }}
+
+  # -------------------------------------------------------------
+  # Job 3: Terraform Apply (On Main Push or Manual Trigger)
+  # -------------------------------------------------------------
+  apply:
+    name: "Terraform Apply (${{ github.event.inputs.environment || 'preprod' }})"
+    runs-on: ubuntu-latest
+    needs: plan
+    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+    defaults:
+      run:
+        working-directory: "Environment/${{ github.event.inputs.environment || 'preprod' }}"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.7"
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -var-file="terraform.tfvars"
+
+  # -------------------------------------------------------------
+  # Job 4: Terraform Destroy (Manual Trigger Only)
+  # -------------------------------------------------------------
+  destroy:
+    name: "Terraform Destroy (${{ github.event.inputs.environment || 'preprod' }})"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    defaults:
+      run:
+        working-directory: "Environment/${{ github.event.inputs.environment || 'preprod' }}"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.7"
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve -var-file="terraform.tfvars"
